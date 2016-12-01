@@ -276,6 +276,11 @@ class QAPIManager(object):
             self.__check_epid(epid, authtoken)
             return self.__workers[epid].request_sub_list(lid, limit=limit, offset=offset)
 
+    def request_sub_recent(self, epid, authtoken, sub_id, count=None):
+        with self.__workers_lock:
+            self.__check_epid(epid, authtoken)
+            return self.__workers[epid].request_sub_recent(sub_id, count=count)
+
     def request_search(self, epid, authtoken, text=None, lang=None, location=None, unit=None,
                        limit=100, offset=0, type_='full'):
         with self.__workers_lock:

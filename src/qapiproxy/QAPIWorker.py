@@ -19,16 +19,25 @@ logger = logging.getLogger(__name__)
 
 from threading import Thread, Event
 from queue import Queue
-from time import sleep
+from time import sleep, monotonic
 
 from IoticAgent import Core as IoticAgentCore
+
+
+DATA_KEEP = 50              # How many feed shares etc to keep in a queue until fetched?
+SLEEP_ON_IDLE = 60 * 5      # How long before sleeping the agent?
 
 
 class QAPIWorker(object):
     """QAPI Worker is one IoticAgent instance
     """
 
-    def __init__(self, details, managerStop, keepFeeddata=50, keepControlreq=50, keepUnsolicited=50):
+    def __init__(self, details, managerStop,
+                 keepFeeddata=DATA_KEEP,
+                 keepControlreq=DATA_KEEP,
+                 keepUnsolicited=DATA_KEEP,
+                 sleepOnIdle=SLEEP_ON_IDLE):
+        #
         self.__details = details
         self.__stop = Event()
         self.__managerStop = managerStop
@@ -57,6 +66,10 @@ class QAPIWorker(object):
         #
         self.__thread = None
         self.__qc = None        # IoticAgent.Core.Client instance
+        #
+        self.__sleep_on_idle = sleepOnIdle
+        self.__qc_last = 0          # Last time qc was used for a request
+        self.__qc_running = False   # QC is sleeping? (started (True) or stopped (False))
         #
         self.__polltime = 5
         self.__dead_max = 6     # How many times to try to start a dead worker?
@@ -107,114 +120,160 @@ class QAPIWorker(object):
         self.__stop.set()
         self.__thread.join()
 
+    def __wake_agent(self):
+        if not self.__qc_running:
+            logger.info("QAPIWorker %s Waking", self.__details['epid'])
+            self.__qc.start()
+            self.__qc_running = True
+        self.__qc_last = monotonic()
+
     @property
     def default_lang(self):
         return self.__qc.default_lang
 
     def request_entity_create(self, lid, tepid=None):
+        self.__wake_agent()
         return self.__qc.request_entity_create(lid, epId=tepid)
 
     def request_entity_rename(self, lid, newlid):
+        self.__wake_agent()
         return self.__qc.request_entity_rename(lid, newlid)
 
     def request_entity_reassign(self, lid, nepid=None):
+        self.__wake_agent()
         return self.__qc.request_entity_reassign(lid, nepid)
 
     def request_entity_delete(self, lid):
+        self.__wake_agent()
         return self.__qc.request_entity_delete(lid)
 
     def request_entity_list(self, limit=500, offset=0):
+        self.__wake_agent()
         return self.__qc.request_entity_list(limit=limit, offset=offset)
 
     def request_entity_list_all(self, limit=500, offset=0):
+        self.__wake_agent()
         return self.__qc.request_entity_list_all(limit=limit, offset=offset)
 
     def request_entity_meta_get(self, lid, fmt="n3"):
+        self.__wake_agent()
         return self.__qc.request_entity_meta_get(lid, fmt=fmt)
 
     def request_entity_meta_set(self, lid, meta, fmt="n3"):
+        self.__wake_agent()
         return self.__qc.request_entity_meta_set(lid, meta, fmt=fmt)
 
     def request_entity_meta_setpublic(self, lid, public=True):
+        self.__wake_agent()
         return self.__qc.request_entity_meta_setpublic(lid, public=public)
 
     def request_entity_tag_create(self, lid, tags, lang=None, delete=False):
+        self.__wake_agent()
         return self.__qc.request_entity_tag_create(lid, tags, lang=lang, delete=delete)
 
     def request_entity_tag_delete(self, lid, tags, lang=None):
+        self.__wake_agent()
         return self.request_entity_tag_create(lid, tags, lang=lang, delete=True)
 
     def request_entity_tag_list(self, lid, limit=100, offset=0):
+        self.__wake_agent()
         return self.__qc.request_entity_tag_list(lid, limit=limit, offset=offset)
 
     def request_point_create(self, foc, lid, pid, control_cb=None):
+        self.__wake_agent()
         return self.__qc.request_point_create(foc, lid, pid, control_cb=control_cb)
 
     def request_point_rename(self, foc, lid, pid, newpid):
+        self.__wake_agent()
         return self.__qc.request_point_rename(foc, lid, pid, newpid)
 
     def request_point_confirm_tell(self, foc, lid, pid, success=True, requestId=None):
+        self.__wake_agent()
         return self.__qc.request_point_confirm_tell(foc, lid, pid, success=success, requestId=requestId)
 
     def request_point_delete(self, foc, lid, pid):
+        self.__wake_agent()
         return self.__qc.request_point_delete(foc, lid, pid)
 
     def request_point_list(self, foc, lid, limit=500, offset=0):
+        self.__wake_agent()
         return self.__qc.request_point_list(foc, lid, limit=limit, offset=offset)
 
     def request_point_list_detailed(self, foc, lid, pid):
+        self.__wake_agent()
         return self.__qc.request_point_list_detailed(foc, lid, pid)
 
     def request_point_meta_get(self, foc, lid, pid, fmt="n3"):
+        self.__wake_agent()
         return self.__qc.request_point_meta_get(foc, lid, pid, fmt=fmt)
 
     def request_point_meta_set(self, foc, lid, pid, meta, fmt="n3"):
+        self.__wake_agent()
         return self.__qc.request_point_meta_set(foc, lid, pid, meta, fmt=fmt)
 
     def request_point_value_create(self, lid, pid, foc, label, vtype, lang=None, comment=None, unit=None):
+        self.__wake_agent()
         return self.__qc.request_point_value_create(lid, pid, foc, label, vtype, lang=lang, comment=comment, unit=unit)
 
     def request_point_value_delete(self, lid, pid, foc, label, lang=None):
+        self.__wake_agent()
         return self.__qc.request_point_value_delete(lid, pid, foc, label, lang=lang)
 
     def request_point_value_list(self, lid, pid, foc, limit=500, offset=0):
+        self.__wake_agent()
         return self.__qc.request_point_value_list(lid, pid, foc, limit=limit, offset=offset)
 
     def request_point_tag_create(self, foc, lid, pid, tags, lang=None, delete=False):
+        self.__wake_agent()
         return self.__qc.request_point_tag_create(foc, lid, pid, tags, lang=lang, delete=delete)
 
     def request_point_tag_delete(self, foc, lid, pid, tags, lang=None):
+        self.__wake_agent()
         return self.__qc.request_point_tag_create(foc, lid, pid, tags, lang=lang, delete=True)
 
     def request_point_tag_list(self, foc, lid, pid, limit=500, offset=0):
+        self.__wake_agent()
         return self.__qc.request_point_tag_list(foc, lid, pid, limit=limit, offset=offset)
 
     def request_sub_create(self, lid, foc, gpid, callback=None):
+        self.__wake_agent()
         return self.__qc.request_sub_create(lid, foc, gpid, callback=callback)
 
     def request_sub_create_local(self, slid, foc, lid, pid, callback=None):
+        self.__wake_agent()
         return self.__qc.request_sub_create_local(slid, foc, lid, pid, callback=callback)
 
     def request_point_share(self, lid, pid, data, mime=None):
+        self.__wake_agent()
         return self.__qc.request_point_share(lid, pid, data, mime=mime)
 
     def request_sub_ask(self, sub_id, data, mime=None):
+        self.__wake_agent()
         return self.__qc.request_sub_ask(sub_id, data, mime=mime)
 
     def request_sub_tell(self, sub_id, data, timeout, mime=None):
+        self.__wake_agent()
         return self.__qc.request_sub_tell(sub_id, data, timeout, mime=mime)
 
     def request_sub_delete(self, sub_id):
+        self.__wake_agent()
         return self.__qc.request_sub_delete(sub_id)
 
     def request_sub_list(self, lid, limit=500, offset=0):
+        self.__wake_agent()
         return self.__qc.request_sub_list(lid, limit=limit, offset=offset)
 
+    def request_sub_recent(self, sub_id, count=None):
+        self.__wake_agent()
+        return self.__qc.request_sub_recent(sub_id, count=count)
+
     def request_search(self, text=None, lang=None, location=None, unit=None, limit=100, offset=0, type_='full'):
+        self.__wake_agent()
         return self.__qc.request_search(text=text, lang=lang, location=location, unit=unit,
                                         limit=limit, offset=offset, type_=type_)
 
     def request_describe(self, guid):
+        self.__wake_agent()
         return self.__qc.request_describe(guid)
 
     def __cb_feeddata(self, data):
@@ -279,7 +338,7 @@ class QAPIWorker(object):
                 dead_count < self.__dead_max:
             done = True
             try:
-                self.__qc.start()
+                self.__wake_agent()
             except:
                 logger.error("Worker %s FAILED TO START sleep(%i)...", self.__details['epid'], self.__dead_sleep)
                 done = False
@@ -296,6 +355,11 @@ class QAPIWorker(object):
         while not self.__stop.is_set() and not self.__managerStop.is_set():
             logger.debug("QAPIWorker %s still running", self.__details['epid'])
             self.__stop.wait(self.__polltime)
+            #
+            if self.__qc_running and (monotonic() - self.__qc_last > self.__sleep_on_idle):
+                logger.info("QAPIWorker %s Sleeping", self.__details['epid'])
+                self.__qc.stop()
+                self.__qc_running = False
         # Clean-up
         try:
             self.__qc.stop()

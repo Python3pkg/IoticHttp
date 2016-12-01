@@ -17,6 +17,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 from json import loads, dumps
+from ubjson import loadb as ubjloadb
+from base64 import b64encode
+from datetime import datetime
 from ssl import SSLContext, CERT_REQUIRED, OP_NO_COMPRESSION, PROTOCOL_TLSv1_2, RAND_add
 from socket import socket as createSocket, getaddrinfo, AI_PASSIVE, SOCK_STREAM, AF_UNSPEC
 # from socketserver import ForkingMixIn
@@ -39,6 +42,7 @@ except ImportError:
 
 import IoticAgent.Core as IoticAgentCore
 from IoticAgent.Core.Exceptions import LinkException
+from IoticAgent.Core.Mime import expand_idx_mimetype
 
 # future todo: forking + ipc (pipe?) to workers?
 # class ForkingHTTPServer(ForkingMixIn, HTTPServer):
@@ -142,7 +146,7 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     body = self.rfile.read(int(length)).decode('utf-8')
             except:
-                print('Failed to decode/parse body, ignoring')
+                logger.warning('Failed to decode/parse body, ignoring')
                 body = None
         #
         if body is not None and len(body):
@@ -221,17 +225,28 @@ class Handler(BaseHTTPRequestHandler):
                 if evt.success:
                     mtype = IoticAgentCore.Const.E_COMPLETE
                 payload = evt.payload
-                if evt.is_crud:
-                    for em in evt._messages:
-                        crud = [IoticAgentCore.Const.E_CREATED,
-                                IoticAgentCore.Const.E_DUPLICATED,
-                                IoticAgentCore.Const.E_RENAMED,
-                                IoticAgentCore.Const.E_DELETED,
-                                IoticAgentCore.Const.E_REASSIGNED]
-                        if em[IoticAgentCore.Const.M_TYPE] in crud:
-                            mtype = em[IoticAgentCore.Const.M_TYPE]
-                            payload = em[IoticAgentCore.Const.M_PAYLOAD]
-                            break
+                for em in evt._messages:
+                    crud = [IoticAgentCore.Const.E_CREATED,
+                            IoticAgentCore.Const.E_DUPLICATED,
+                            IoticAgentCore.Const.E_RENAMED,
+                            IoticAgentCore.Const.E_DELETED,
+                            IoticAgentCore.Const.E_REASSIGNED]
+                    if evt.is_crud and em[IoticAgentCore.Const.M_TYPE] in crud:
+                        mtype = em[IoticAgentCore.Const.M_TYPE]
+                        payload = em[IoticAgentCore.Const.M_PAYLOAD]
+                        break
+                    elif em[IoticAgentCore.Const.M_TYPE] == IoticAgentCore.Const.E_RECENTDATA:
+                        if payload is None:
+                            payload = {'samples': []}
+                        if 'samples' in em[IoticAgentCore.Const.M_PAYLOAD]:
+                            for sample in em[IoticAgentCore.Const.M_PAYLOAD]['samples']:
+                                data, mime = self.__bytes_to_share_data(sample)
+                                payload['samples'].append({'data': data, 'mime': mime, 'time': sample['time']})
+                        else:
+                            logger.warning("Message type E_RECENTDATA but no samples?")
+                if 'samples' in payload:
+                    # If recent data then ensure no bytes left in payload before __send_resp!
+                    payload['samples'] = self.__data_payload_to_b64(payload['samples'])
                 code = 200  # sync' request OK
                 if mtype == IoticAgentCore.Const.E_CREATED:
                     code = 201
@@ -252,6 +267,26 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # pylint: disable=broad-except
             logger.exception("IoticAgent Exception")
             return self.__send_resp(500, {'error': 'internal error', 'message': str(exc)})
+
+    @classmethod
+    def __bytes_to_share_data(cls, payload):
+        """Attempt to auto-decode data"""
+        rbytes = payload['data']
+        mime = payload['mime']
+
+        if mime is None:
+            return rbytes, mime
+        mime = expand_idx_mimetype(mime).lower()
+        try:
+            if mime == 'application/ubjson':
+                return ubjloadb(rbytes), None
+            elif mime == 'text/plain; charset=utf8':
+                return rbytes.decode('utf-8'), None
+            else:
+                return rbytes, mime
+        except:
+            logger.warning('auto-decode failed, returning bytes', exc_info=DEBUG_ENABLED)
+            return rbytes, mime
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -436,23 +471,58 @@ class Handler(BaseHTTPRequestHandler):
                 limit=limit,
                 offset=offset)
         elif self.path.startswith('/sub'):
-            lid = self.__path_arg(2)
-            return self.__qapi_call(
-                self.__qapiManager.request_sub_list,
-                lid,
-                limit=limit,
-                offset=offset)
+            return self.__do_GET_sub(lang, limit, offset)
         elif self.path == '/feeddata':
-            return self.__send_resp(200, self.__qapiManager.get_feeddata(self.headers['epId'],
-                                                                         self.headers['authToken']))
+            return self.__send_resp(200, self.__data_payload_to_b64(
+                                             self.__qapiManager.get_feeddata(self.headers['epId'],
+                                                                             self.headers['authToken'])))
         elif self.path == '/controlreq':
-            return self.__send_resp(200, self.__qapiManager.get_controlreq(self.headers['epId'],
-                                                                           self.headers['authToken']))
+            return self.__send_resp(200, self.__data_payload_to_b64(
+                                             self.__qapiManager.get_controlreq(self.headers['epId'],
+                                                                               self.headers['authToken'])))
         elif self.path == '/unsolicited':
-            return self.__send_resp(200, self.__qapiManager.get_unsolicited(self.headers['epId'],
-                                                                            self.headers['authToken']))
+            return self.__send_resp(200, self.__data_payload_to_b64(
+                                             self.__qapiManager.get_unsolicited(self.headers['epId'],
+                                                                                self.headers['authToken'])))
         else:
             return self.__send_resp(405, {'error': 'invalid resource'})
+
+    def __data_payload_to_b64(self, datalist):
+        ret = []
+        for row in datalist:
+            if isinstance(row['data'], bytes):
+                row['data'] = 'base64/' + b64encode(row['data']).decode('ascii')
+            elif isinstance(row['data'], dict):
+                row['data'] = self.__dict_to_b64(row['data'])
+            elif isinstance(row['data'], list):
+                # todo: data payload can be list ?
+                row['data'] = self.__list_to_b64(row['data'])
+            ret.append(row)
+        return ret
+
+    def __dict_to_b64(self, data):
+        ret = {}
+        for key, value in data.items():
+            if isinstance(value, bytes):
+                value = "base64/" + b64encode(value).decode('ascii')
+            elif isinstance(value, dict):
+                value = self.__dict_to_b64(value)
+            elif isinstance(value, list):
+                value = self.__list_to_b64(value)
+            ret[key] = value
+        return ret
+
+    def __list_to_b64(self, data):
+        ret = []
+        for value in data:
+            if isinstance(value, dict):
+                value = self.__dict_to_b64(value)
+            elif isinstance(value, list):
+                value = self.__list_to_b64(value)
+            elif isinstance(value, bytes):
+                value = "base64/" + b64encode(value).decode('ascii')
+            ret.append(value)
+        return ret
 
     def __do_GET_entity(self, lang, limit, offset):  # pylint: disable=too-many-return-statements
         if self.path == '/entity':
@@ -557,6 +627,29 @@ class Handler(BaseHTTPRequestHandler):
                     lid,
                     limit=limit,
                     offset=offset)
+
+    def __do_GET_sub(self, lang, limit, offset):
+        if self.path.endswith('/recent'):
+            sub_id = self.__path_arg(2)
+            count = self.__path_arg(3)
+            if count == 'recent':
+                count = None
+            else:
+                try:
+                    count = int(count)
+                except ValueError:
+                    count = None
+            return self.__qapi_call(
+                self.__qapiManager.request_sub_recent,
+                sub_id,
+                count=count)
+        else:
+            lid = self.__path_arg(2)
+            return self.__qapi_call(
+                self.__qapiManager.request_sub_list,
+                lid,
+                limit=limit,
+                offset=offset)
 
     def do_PUT(self):
         payload = self._read_body()
@@ -737,7 +830,6 @@ class Handler(BaseHTTPRequestHandler):
                 foc,
                 lid,
                 pid)
-
 
 
 def getSSLContext(capath, crtpath, keypath, keypass=None):
