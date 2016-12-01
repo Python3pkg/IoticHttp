@@ -32,7 +32,7 @@ else:
     READ_MD = lambda f: convert(f, 'rst')
 
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 
 setup(
     name='IoticHttp',
@@ -48,7 +48,7 @@ setup(
     packages=find_packages('src', exclude=['tests']),
     entry_points={"console_scripts": ["qapiproxy = qapiproxy.__main__:main"]},
     package_dir={'': 'src'},
-    install_requires=['py-IoticAgent>=0.3.1'],
+    install_requires=['py-IoticAgent>=0.4.0'],
     zip_safe=True,
     keywords=['iotic', 'agent', 'labs', 'space', 'iot'],
     classifiers=[
