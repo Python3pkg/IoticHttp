@@ -151,13 +151,10 @@ class QAPIManager(object):
             self.__check_epid(epid, authtoken)
             return self.__workers[epid].request_entity_meta_setpublic(lid, public=public)
 
-    def request_entity_tag_create(self, epid, authtoken, lid, tags, lang=None, delete=False):
+    def request_entity_tag_update(self, epid, authtoken, lid, tags, delete=False):
         with self.__workers_lock:
             self.__check_epid(epid, authtoken)
-            return self.__workers[epid].request_entity_tag_create(lid, tags, lang=lang, delete=delete)
-
-    def request_entity_tag_delete(self, epid, authtoken, lid, tags, lang=None):
-        return self.request_entity_tag_create(epid, authtoken, lid, tags, lang=lang, delete=True)
+            return self.__workers[epid].request_entity_tag_update(lid, tags, delete=delete)
 
     def request_entity_tag_list(self, epid, authtoken, lid, limit=100, offset=0):
         with self.__workers_lock:
@@ -212,23 +209,20 @@ class QAPIManager(object):
             return self.__workers[epid].request_point_value_create(lid, pid, foc, label,
                                                                    vtype, lang=lang, comment=comment, unit=unit)
 
-    def request_point_value_delete(self, epid, authtoken, lid, pid, foc, label, lang=None):
+    def request_point_value_delete(self, epid, authtoken, lid, pid, foc, label=None):
         with self.__workers_lock:
             self.__check_epid(epid, authtoken)
-            return self.__workers[epid].request_point_value_delete(lid, pid, foc, label, lang=lang)
+            return self.__workers[epid].request_point_value_delete(lid, pid, foc, label=label)
 
     def request_point_value_list(self, epid, authtoken, lid, pid, foc, limit=500, offset=0):
         with self.__workers_lock:
             self.__check_epid(epid, authtoken)
             return self.__workers[epid].request_point_value_list(lid, pid, foc, limit=limit, offset=offset)
 
-    def request_point_tag_create(self, epid, authtoken, foc, lid, pid, tags, lang=None, delete=False):
+    def request_point_tag_update(self, epid, authtoken, foc, lid, pid, tags, delete=False):
         with self.__workers_lock:
             self.__check_epid(epid, authtoken)
-            return self.__workers[epid].request_point_tag_create(foc, lid, pid, tags, lang=lang, delete=delete)
-
-    def request_point_tag_delete(self, epid, authtoken, foc, lid, pid, tags, lang=None):
-        return self.request_point_tag_create(epid, authtoken, foc, lid, pid, tags, lang=lang, delete=True)
+            return self.__workers[epid].request_point_tag_update(foc, lid, pid, tags, delete=delete)
 
     def request_point_tag_list(self, epid, authtoken, foc, lid, pid, limit=500, offset=0):
         with self.__workers_lock:
@@ -282,16 +276,16 @@ class QAPIManager(object):
             return self.__workers[epid].request_sub_recent(sub_id, count=count)
 
     def request_search(self, epid, authtoken, text=None, lang=None, location=None, unit=None,
-                       limit=100, offset=0, type_='full'):
+                       limit=100, offset=0, type_='full', local=False):
         with self.__workers_lock:
             self.__check_epid(epid, authtoken)
             return self.__workers[epid].request_search(text=text, lang=lang, location=location,
-                                                       unit=unit, limit=limit, offset=offset, type_=type_)
+                                                       unit=unit, limit=limit, offset=offset, type_=type_, local=local)
 
-    def request_describe(self, epid, authtoken, guid):
+    def request_describe(self, epid, authtoken, guid, local=False):
         with self.__workers_lock:
             self.__check_epid(epid, authtoken)
-            return self.__workers[epid].request_describe(guid)
+            return self.__workers[epid].request_describe(guid, local=local)
 
     def __run(self):
         #

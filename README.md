@@ -1,38 +1,33 @@
 # Iotic Labs HTTPS Proxy for QAPI
 
 The QAPI Proxy provides a HTTP/RESTful interface to the Iotic-labs Queue API.  The HTTP interface
-can be secure (TLS 1.2) or insecure (plain HTTP) as you wish.  The terms qapiproxy and HTTPProxy are used interchangeably
-
-API documentation can be found in the wiki [here](https://github.com/Iotic-Labs/IoticHttp/wiki)
+can be secure (TLS 1.2) or insecure (plain HTTP) as you wish.
 
 ### What it's for
 The Proxy exists for 2 reasons
-
 1. It's part of the Iotic-Labs web infrastructure and allows the Iotic Space web-app acts as an Iotic Thing
 2. To provide an agent for devices that are too constrained to run one themselves.
-This might be because they aren't able to run python or don't have sufficient processing power to run TLS 1.2.  For example: Arduino Uno
+This might be because they aren't able to run python or don't have sufficient processing power to run TLS 1.2.
 
 ### Limitations.
-1. The proxy does not expose the full qapi functionality, but it's straightforward to extend it to add new functions.
-For an example of such a functional extension see the [metahelper](src/qapiproxy/RDFHelper.py)
+1. The proxy does not expose the full qapi functionality, but it's reasonably easy to add new functions c.f. metahelper
 
 ## Requires
 
 - Python3 (tested with 3.4.3)
 
 If using src release:
-- [py-IoticAgent](https://github.com/Iotic-Labs/py-IoticAgent)
-- Optional/ [mysqlclient](https://pypi.python.org/pypi/mysqlclient)
-- Optional/ [rdflib](https://pypi.python.org/pypi/rdflib) To enable GET PUT /entity /point ... /metahelper URLs
+- py-IoticAgent https://github.com/Iotic-Labs/py-IoticAgent
+- Optional/ mysqlclient https://pypi.python.org/pypi/mysqlclient
+- Optional/ rdflib to enable GET PUT /entity /point ... /metahelper URLs
 
 
 ## Config Options
 
-The proxy can load all its config from an ini file. - OR -
-Optionally it can store any Agent credentials in a MySQL database.
+qapiproxy can load all it's config from an ini file.
+Optionally storing Agent credentials a MySQL database.
 
 - Common settings
-
 ```ini
 [https]
 ; host and port of the RESTServer instance
@@ -61,7 +56,6 @@ keep_unsolicited = 50
 ```
 
 - ini or mysql
-
 ```ini
 [config]
 ; mode can be 'ini' or 'mysql'
@@ -103,19 +97,23 @@ authtokens =
 ; sslca = xz
 ```
 
-### mysql mode
 
-In mysql mode the schema in `qaconfig.sql` can be used to store 1..n agent credentials.
-The [qapimanager](src/qapiproxy/QAPIManager.py) new_worker time seconds will be used to check the table to add/remove agents.
+## Install
+
+Build (If using src release)
+-------
+1) Create .pyz:
+    cd src && ./make_pyz.sh
+2) Run in current directory (as current user):
+    PYTHONPATH=qapiproxy.pyz python3 -mqapiproxy qapiproxy.cfg
 
 
-### Service
-
-[qapiproxy.init](qapiproxy.init) is an LSB 4.1 compatible service script. See configuration options at the top of said script for
-setup. (The qapiproxy should be run as non-root user.)
+Service
+-------
+qapiproxy.init is an LSB 4.1 compatible service script. See configuration options at the top of said script for
+setup. (The qapiproxyy should be run as non-root user.)
 
 Using the service to run qapiproxy in the background:
-
 ```shell
 # Create a directory for the log file
 mkdir data
@@ -130,10 +128,9 @@ tail -f data/qapiproxy.log
 ```
 
 For system service:
-
-- edit [qapiproxy.init](qapiproxy.init) QAPIPROXY_RUN_DIR and QAPIPROXY_USER
-- `cp qapiproxy.init /etc/init.d/qapiproxy`
-- `chmod a+x /etc/init.d/qapiproxy`
-- `chkconfig --add qapiproxy`
-- `chkconfig qapiproxy off  # Don't start automatically since depends on everything running already`
-- `sudo service qapiproxy start`
+- edit qapiproxy.init QAPIPROXY_RUN_DIR and QAPIPROXY_USER
+- cp qapiproxy.init /etc/init.d/qapiproxy
+- chmod a+x /etc/init.d/qapiproxy
+- chkconfig --add qapiproxy
+- chkconfig qapiproxy off  # Don't start automatically since depends on everything running already
+- sudo service qapiproxy start

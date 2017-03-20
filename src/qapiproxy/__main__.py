@@ -17,14 +17,14 @@
 
 # pylint: disable=invalid-name
 
-from sys import exit, argv
+from sys import argv
 from os import environ
+import logging
 
 from .QAPIManager import QAPIManager
 from .QAPIConfig import QAPIConfig
 from . import RESTServer
 
-import logging
 logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)s [%(name)s] {%(threadName)s} %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)

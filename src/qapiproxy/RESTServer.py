@@ -17,9 +17,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from json import loads, dumps
-from ubjson import loadb as ubjloadb
 from base64 import b64encode
-from datetime import datetime
 from ssl import SSLContext, CERT_REQUIRED, OP_NO_COMPRESSION, PROTOCOL_TLSv1_2, RAND_add
 from socket import socket as createSocket, getaddrinfo, AI_PASSIVE, SOCK_STREAM, AF_UNSPEC
 # from socketserver import ForkingMixIn
@@ -31,6 +29,8 @@ from urllib import parse
 from threading import Thread
 from os import urandom
 from zlib import decompress
+
+from ubjson import loadb as ubjloadb
 
 rdflib = None
 try:
@@ -244,7 +244,7 @@ class Handler(BaseHTTPRequestHandler):
                                 payload['samples'].append({'data': data, 'mime': mime, 'time': sample['time']})
                         else:
                             logger.warning("Message type E_RECENTDATA but no samples?")
-                if 'samples' in payload:
+                if payload and 'samples' in payload:
                     # If recent data then ensure no bytes left in payload before __send_resp!
                     payload['samples'] = self.__data_payload_to_b64(payload['samples'])
                 code = 200  # sync' request OK
@@ -285,7 +285,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 return rbytes, mime
         except:
-            logger.warning('auto-decode failed, returning bytes', exc_info=DEBUG_ENABLED)
+            logger.warning('auto-decode failed, returning bytes')
             return rbytes, mime
 
     def do_OPTIONS(self):
@@ -330,12 +330,14 @@ class Handler(BaseHTTPRequestHandler):
                 location=payload['location'] if 'location' in payload else None,
                 unit=payload['unit'] if 'unit' in payload else None,
                 type_=payload['type'] if 'type' in payload else 'full',
+                local=payload['local'] if 'local' in payload else False,
                 limit=limit,
                 offset=offset)
         elif self.path.startswith('/describe'):
             return self.__qapi_call(
                 self.__qapiManager.request_describe,
-                payload['guid'] if 'guid' in payload else '')
+                payload['guid'] if 'guid' in payload else '',
+                local=payload['local'] if 'local' in payload else False)
         else:
             return self.__send_resp(405, {'error': 'invalid resource'})
 
@@ -348,10 +350,9 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.endswith('/tag'):
             lid = self.__path_arg(2)
             return self.__qapi_call(
-                self.__qapiManager.request_entity_tag_create,
+                self.__qapiManager.request_entity_tag_update,
                 lid,
-                payload['tags'] if 'tags' in payload else [],
-                lang=payload['lang'] if 'lang' in payload else None)
+                payload['tags'] if 'tags' in payload else [])
         # Special RDFHelper functions if rdflib is available
         elif rdflib is not None and self.path.endswith('tag/metahelper'):
             if lang is None:
@@ -362,8 +363,7 @@ class Handler(BaseHTTPRequestHandler):
                                                         epId,
                                                         authToken,
                                                         lid,
-                                                        payload['tags'] if 'tags' in payload else [],
-                                                        lang)
+                                                        payload['tags'] if 'tags' in payload else [])
             self.__send_resp(code, resp)
         #
         else:
@@ -375,12 +375,11 @@ class Handler(BaseHTTPRequestHandler):
             lid = self.__path_arg(3)
             pid = self.__path_arg(4)
             return self.__qapi_call(
-                self.__qapiManager.request_point_tag_create,
+                self.__qapiManager.request_point_tag_update,
                 foc,
                 lid,
                 pid,
-                payload['tags'] if 'tags' in payload else '',
-                payload['lang'] if 'lang' in payload else None)
+                payload['tags'] if 'tags' in payload else '')
         elif self.path.endswith('/share'):
             lid = self.__path_arg(2)
             pid = self.__path_arg(3)
@@ -403,8 +402,7 @@ class Handler(BaseHTTPRequestHandler):
                                                        foc,
                                                        lid,
                                                        pid,
-                                                       payload['tags'] if 'tags' in payload else [],
-                                                       lang)
+                                                       payload['tags'] if 'tags' in payload else [])
             self.__send_resp(code, resp)
         #
         else:
@@ -471,19 +469,16 @@ class Handler(BaseHTTPRequestHandler):
                 limit=limit,
                 offset=offset)
         elif self.path.startswith('/sub'):
-            return self.__do_GET_sub(lang, limit, offset)
+            return self.__do_GET_sub(limit, offset)
         elif self.path == '/feeddata':
             return self.__send_resp(200, self.__data_payload_to_b64(
-                                             self.__qapiManager.get_feeddata(self.headers['epId'],
-                                                                             self.headers['authToken'])))
+                self.__qapiManager.get_feeddata(self.headers['epId'], self.headers['authToken'])))
         elif self.path == '/controlreq':
             return self.__send_resp(200, self.__data_payload_to_b64(
-                                             self.__qapiManager.get_controlreq(self.headers['epId'],
-                                                                               self.headers['authToken'])))
+                self.__qapiManager.get_controlreq(self.headers['epId'], self.headers['authToken'])))
         elif self.path == '/unsolicited':
             return self.__send_resp(200, self.__data_payload_to_b64(
-                                             self.__qapiManager.get_unsolicited(self.headers['epId'],
-                                                                                self.headers['authToken'])))
+                self.__qapiManager.get_unsolicited(self.headers['epId'], self.headers['authToken'])))
         else:
             return self.__send_resp(405, {'error': 'invalid resource'})
 
@@ -508,7 +503,7 @@ class Handler(BaseHTTPRequestHandler):
             elif isinstance(value, dict):
                 value = self.__dict_to_b64(value)
             elif isinstance(value, list):
-                value = self.__list_to_b64(value)
+                value = self.__list_to_b64(value)  # pylint: disable=redefined-variable-type
             ret[key] = value
         return ret
 
@@ -518,7 +513,7 @@ class Handler(BaseHTTPRequestHandler):
             if isinstance(value, dict):
                 value = self.__dict_to_b64(value)
             elif isinstance(value, list):
-                value = self.__list_to_b64(value)
+                value = self.__list_to_b64(value)  # pylint: disable=redefined-variable-type
             elif isinstance(value, bytes):
                 value = "base64/" + b64encode(value).decode('ascii')
             ret.append(value)
@@ -557,8 +552,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.__send_resp(400, {'error': 'X-Language must be specified for metahelper functions'})
             epId, authToken = self.__get_epid_headers()
             lid = self.__path_arg(2)
-            code, resp = RDFHelper.get_meta_entity_tags(self.__qapiManager, epId, authToken, lid, lang,
-                                                        limit=limit, offset=offset)
+            code, resp = RDFHelper.get_meta_entity_tags(self.__qapiManager, epId, authToken, lid, limit=limit,
+                                                        offset=offset)
             self.__send_resp(code, resp)
         elif rdflib is not None and self.path.endswith('/metahelper'):
             if lang is None:
@@ -593,8 +588,6 @@ class Handler(BaseHTTPRequestHandler):
                 offset=offset)
         # Special RDFHelper functions if rdflib is available
         elif rdflib is not None and self.path.endswith('tag/metahelper'):
-            if lang is None:
-                return self.__send_resp(400, {'error': 'X-Language must be specified for metahelper functions'})
             epId, authToken = self.__get_epid_headers()
             code, resp = RDFHelper.get_meta_point_tags(self.__qapiManager,
                                                        epId,
@@ -602,7 +595,6 @@ class Handler(BaseHTTPRequestHandler):
                                                        foc,
                                                        lid,
                                                        pid,
-                                                       lang,
                                                        limit=limit,
                                                        offset=offset)
             self.__send_resp(code, resp)
@@ -628,7 +620,7 @@ class Handler(BaseHTTPRequestHandler):
                     limit=limit,
                     offset=offset)
 
-    def __do_GET_sub(self, lang, limit, offset):
+    def __do_GET_sub(self, limit, offset):
         if self.path.endswith('/recent'):
             sub_id = self.__path_arg(2)
             count = self.__path_arg(3)
@@ -636,7 +628,7 @@ class Handler(BaseHTTPRequestHandler):
                 count = None
             else:
                 try:
-                    count = int(count)
+                    count = int(count)  # pylint: disable=redefined-variable-type
                 except ValueError:
                     count = None
             return self.__qapi_call(
@@ -739,25 +731,22 @@ class Handler(BaseHTTPRequestHandler):
     def do_DELETE(self):  # noqa (complexity) # pylint: disable=too-many-branches
         payload = self._read_body()
         self.__log('DELETE', self.path, self.headers, payload)
-        lang = self.__xlang()
         #
         if self.path.startswith('/entity'):
-            return self.__do_DELETE_entity(payload, lang)
+            return self.__do_DELETE_entity(payload)
         elif self.path.startswith('/point'):
-            return self.__do_DELETE_point(payload, lang)
+            return self.__do_DELETE_point(payload)
         elif self.path.startswith('/value'):
             foc = self.__str_to_foc()
             lid = self.__path_arg(3)
             pid = self.__path_arg(4)
             label = self.__path_arg(5)
-            lang = self.__path_arg(6)
             return self.__qapi_call(
                 self.__qapiManager.request_point_value_delete,
                 lid,
                 pid,
                 foc,
-                label,
-                lang)
+                label)
         elif self.path.startswith('/sub'):
             subid = self.__path_arg(2)
             return self.__qapi_call(
@@ -766,26 +755,23 @@ class Handler(BaseHTTPRequestHandler):
         else:
             return self.__send_resp(405, {'error': 'invalid resource'})
 
-    def __do_DELETE_entity(self, payload, lang):
+    def __do_DELETE_entity(self, payload):
         if self.path.endswith('/tag'):
             lid = self.__path_arg(2)
             return self.__qapi_call(
-                self.__qapiManager.request_entity_tag_delete,
+                self.__qapiManager.request_entity_tag_update,
                 lid,
                 payload['tags'] if 'tags' in payload else [],
-                lang=payload['lang'] if 'lang' in payload else None)
+                delete=True)
         # Special RDFHelper functions if rdflib is available
         elif rdflib is not None and self.path.endswith('tag/metahelper'):
-            if lang is None:
-                return self.__send_resp(400, {'error': 'X-Language must be specified for metahelper functions'})
             epId, authToken = self.__get_epid_headers()
             lid = self.__path_arg(2)
             code, resp = RDFHelper.del_meta_entity_tags(self.__qapiManager,
                                                         epId,
                                                         authToken,
                                                         lid,
-                                                        payload['tags'] if 'tags' in payload else [],
-                                                        lang)
+                                                        payload['tags'] if 'tags' in payload else [])
             self.__send_resp(code, resp)
         #
         else:
@@ -794,25 +780,23 @@ class Handler(BaseHTTPRequestHandler):
                 self.__qapiManager.request_entity_delete,
                 lid)
 
-    def __do_DELETE_point(self, payload, lang):
+    def __do_DELETE_point(self, payload):
         foc = self.__str_to_foc()
         lid = self.__path_arg(3)
         pid = self.__path_arg(4)
         if self.path.endswith('/tag'):
             if payload is not None:
                 return self.__qapi_call(
-                    self.__qapiManager.request_point_tag_delete,
+                    self.__qapiManager.request_point_tag_update,
                     foc,
                     lid,
                     pid,
                     payload['tags'] if 'tags' in payload else '',
-                    payload['lang'] if 'lang' in payload else None)
+                    delete=True)
             else:
                 return self.__send_resp(400, {'error': 'malformed'})
         # Special RDFHelper functions if rdflib is available
         elif rdflib is not None and self.path.endswith('tag/metahelper'):
-            if lang is None:
-                return self.__send_resp(400, {'error': 'X-Language must be specified for metahelper functions'})
             epId, authToken = self.__get_epid_headers()
             code, resp = RDFHelper.del_meta_point_tags(self.__qapiManager,
                                                        epId,
@@ -820,8 +804,7 @@ class Handler(BaseHTTPRequestHandler):
                                                        foc,
                                                        lid,
                                                        pid,
-                                                       payload['tags'] if 'tags' in payload else [],
-                                                       lang)
+                                                       payload['tags'] if 'tags' in payload else [])
             self.__send_resp(code, resp)
         #
         else:

@@ -15,7 +15,7 @@
 import logging
 logger = logging.getLogger(__name__)
 
-from sys import version_info, exit
+from sys import version_info
 
 if version_info[0] < 3:
     print('Python version < 3 is not supported.')

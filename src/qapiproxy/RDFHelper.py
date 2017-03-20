@@ -37,14 +37,14 @@ def __good_response_null(code, resp_type):
     return code, ret
 
 
-def __good_response_tag(code, resp_type, taglist, lang):
+def __good_response_tag(code, resp_type, taglist):
     ret = {}
     ret['t'] = resp_type
     ret['p'] = {}
 
-    #  taglist is an OrderedDict([('tags', OrderedDict([('en', ['fish', 'hello'])]))])
+    #  taglist is an OrderedDict([('tags', ['fish', 'hello'])])
     try:
-        ret['p']['tags'] = taglist['tags'][lang]
+        ret['p']['tags'] = taglist['tags']
     except KeyError:
         ret['p']['tags'] = []
 
@@ -90,14 +90,12 @@ def get_meta_entity(qapimanager, epid, authtoken, lid, lang):
         return __exception_response(400, "Failed to get metadata for entity {lid}".format(lid=lid))
 
 
-def get_meta_entity_tags(qapimanager, epid, authtoken, lid, lang, limit=100, offset=0):
+def get_meta_entity_tags(qapimanager, epid, authtoken, lid, limit=100, offset=0):
     logger.info("get_meta_entity_tags: lid = %s", lid)
-    if lang is None:
-        lang = qapimanager.default_lang(epid, authtoken)
     evt = qapimanager.request_entity_tag_list(epid, authtoken, lid, limit=limit, offset=offset)
     evt.wait(timeout=20)
     if evt.success:
-        return __good_response_tag(200, IoticAgent.Core.Const.E_COMPLETE, evt.payload, lang)
+        return __good_response_tag(200, IoticAgent.Core.Const.E_COMPLETE, evt.payload)
     else:
         return __exception_response(400, "Failed to get tags for entity {lid}".format(lid=lid))
 
@@ -118,14 +116,12 @@ def get_meta_point(qapimanager, epid, authtoken, foc, lid, pid, lang):
         return __exception_response(400, "Failed to get meta for {foc} {lid}/{pid}".format(foc=foc, lid=lid, pid=pid))
 
 
-def get_meta_point_tags(qapimanager, epid, authtoken, foc, lid, pid, lang, limit=100, offset=0):
-    logger.info("get_meta_point_tags: lid = %s pid = %s, foc = %s, lang = %s", lid, pid, foc, lang)
-    if lang is None:
-        lang = qapimanager.default_lang(epid, authtoken)
+def get_meta_point_tags(qapimanager, epid, authtoken, foc, lid, pid, limit=100, offset=0):
+    logger.info("get_meta_point_tags: lid = %s pid = %s, foc = %s", lid, pid, foc)
     evt = qapimanager.request_point_tag_list(epid, authtoken, foc, lid, pid, limit=limit, offset=offset)
     evt.wait(timeout=20)
     if evt.success:
-        return __good_response_tag(200, IoticAgent.Core.Const.E_COMPLETE, evt.payload, lang)
+        return __good_response_tag(200, IoticAgent.Core.Const.E_COMPLETE, evt.payload)
     else:
         return __exception_response(400, "Failed to get tags for point {lid}".format(lid=lid))
 
@@ -211,11 +207,9 @@ def set_meta_point(qapimanager, epid, authtoken, foc, lid, pid, payload, lang):
     return 200, {}
 
 
-def add_meta_entity_tags(qapimanager, epid, authtoken, lid, tags, lang):
-    logger.info("add_meta_entity_tags: lid = %s, tags = %s, lang = %s", lid, str(tags), lang)
-    if lang is None:
-        lang = qapimanager.default_lang(epid, authtoken)
-    evt = qapimanager.request_entity_tag_create(epid, authtoken, lid, tags, lang)
+def add_meta_entity_tags(qapimanager, epid, authtoken, lid, tags):
+    logger.info("add_meta_entity_tags: lid = %s, tags = %s", lid, str(tags))
+    evt = qapimanager.request_entity_tag_update(epid, authtoken, lid, tags)
     evt.wait(timeout=20)
     if evt.success:
         return __good_response_null(201, IoticAgent.Core.Const.E_CREATED)
@@ -225,12 +219,10 @@ def add_meta_entity_tags(qapimanager, epid, authtoken, lid, tags, lang):
     return 201, {}
 
 
-def add_meta_point_tags(qapimanager, epid, authtoken, foc, lid, pid, tags, lang):
-    logger.info("add_meta_point_tags: foc = %s, lid = %s, pid = %s, tags = %s, lang = %s",
-                foc, lid, pid, str(tags), lang)
-    if lang is None:
-        lang = qapimanager.default_lang(epid, authtoken)
-    evt = qapimanager.request_point_tag_create(epid, authtoken, foc, lid, pid, tags, lang)
+def add_meta_point_tags(qapimanager, epid, authtoken, foc, lid, pid, tags):
+    logger.info("add_meta_point_tags: foc = %s, lid = %s, pid = %s, tags = %s",
+                foc, lid, pid, str(tags))
+    evt = qapimanager.request_point_tag_update(epid, authtoken, foc, lid, pid, tags)
     evt.wait(timeout=20)
     if evt.success:
         return __good_response_null(201, IoticAgent.Core.Const.E_CREATED)
@@ -240,11 +232,9 @@ def add_meta_point_tags(qapimanager, epid, authtoken, foc, lid, pid, tags, lang)
     return 201, {}
 
 
-def del_meta_entity_tags(qapimanager, epid, authtoken, lid, tags, lang):
-    logger.info("del_meta_entity_tags: lid = %s, tags = %s, lang = %s", lid, str(tags), lang)
-    if lang is None:
-        lang = qapimanager.default_lang(epid, authtoken)
-    evt = qapimanager.request_entity_tag_delete(epid, authtoken, lid, tags, lang)
+def del_meta_entity_tags(qapimanager, epid, authtoken, lid, tags):
+    logger.info("del_meta_entity_tags: lid = %s, tags = %s", lid, str(tags))
+    evt = qapimanager.request_entity_tag_update(epid, authtoken, lid, tags, delete=True)
     evt.wait(timeout=20)
     if evt.success:
         return __good_response_null(204, IoticAgent.Core.Const.E_DELETED)
@@ -254,12 +244,10 @@ def del_meta_entity_tags(qapimanager, epid, authtoken, lid, tags, lang):
     return 200, {}
 
 
-def del_meta_point_tags(qapimanager, epid, authtoken, foc, lid, pid, tags, lang):
-    logger.info("del_meta_point_tags: foc = %s, lid = %s, pid = %s, tags = %s, lang = %s",
-                foc, lid, pid, str(tags), lang)
-    if lang is None:
-        lang = qapimanager.default_lang(epid, authtoken)
-    evt = qapimanager.request_point_tag_delete(epid, authtoken, foc, lid, pid, tags, lang)
+def del_meta_point_tags(qapimanager, epid, authtoken, foc, lid, pid, tags):
+    logger.info("del_meta_point_tags: foc = %s, lid = %s, pid = %s, tags = %s",
+                foc, lid, pid, str(tags))
+    evt = qapimanager.request_point_tag_update(epid, authtoken, foc, lid, pid, tags, delete=True)
     evt.wait(timeout=20)
     if evt.success:
         return __good_response_null(204, IoticAgent.Core.Const.E_DELETED)

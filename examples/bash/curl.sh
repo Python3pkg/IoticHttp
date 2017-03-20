@@ -114,6 +114,9 @@ ${WAIT}
 echo -e "\n\n# === proxy - list subs ${LIDA}"
 ${PROXY_CALL} -X GET -H "epId: ${EPID}" -H "authToken: ${AUTH}" ${PROXY_URL}/sub/${LIDA}
 ${WAIT}
+echo -e "\n\n# === proxy - list sub recent ${LIDA}"
+${PROXY_CALL} -X GET -H "epId: ${EPID}" -H "authToken: ${AUTH}" ${PROXY_URL}/sub/guid/count/recent
+${WAIT}
 echo -e "\n\n# === proxy - delete sub [${LIDA} -> guid"
 ${PROXY_CALL} -X DELETE -H "epId: ${EPID}" -H "authToken: ${AUTH}" ${PROXY_URL}/sub/guid
 ${WAIT}

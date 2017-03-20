@@ -167,13 +167,9 @@ class QAPIWorker(object):
         self.__wake_agent()
         return self.__qc.request_entity_meta_setpublic(lid, public=public)
 
-    def request_entity_tag_create(self, lid, tags, lang=None, delete=False):
+    def request_entity_tag_update(self, lid, tags, delete=False):
         self.__wake_agent()
-        return self.__qc.request_entity_tag_create(lid, tags, lang=lang, delete=delete)
-
-    def request_entity_tag_delete(self, lid, tags, lang=None):
-        self.__wake_agent()
-        return self.request_entity_tag_create(lid, tags, lang=lang, delete=True)
+        return self.__qc.request_entity_tag_update(lid, tags, delete=delete)
 
     def request_entity_tag_list(self, lid, limit=100, offset=0):
         self.__wake_agent()
@@ -215,21 +211,17 @@ class QAPIWorker(object):
         self.__wake_agent()
         return self.__qc.request_point_value_create(lid, pid, foc, label, vtype, lang=lang, comment=comment, unit=unit)
 
-    def request_point_value_delete(self, lid, pid, foc, label, lang=None):
+    def request_point_value_delete(self, lid, pid, foc, label=None):
         self.__wake_agent()
-        return self.__qc.request_point_value_delete(lid, pid, foc, label, lang=lang)
+        return self.__qc.request_point_value_delete(lid, pid, foc, label=label)
 
     def request_point_value_list(self, lid, pid, foc, limit=500, offset=0):
         self.__wake_agent()
         return self.__qc.request_point_value_list(lid, pid, foc, limit=limit, offset=offset)
 
-    def request_point_tag_create(self, foc, lid, pid, tags, lang=None, delete=False):
+    def request_point_tag_update(self, foc, lid, pid, tags, delete=False):
         self.__wake_agent()
-        return self.__qc.request_point_tag_create(foc, lid, pid, tags, lang=lang, delete=delete)
-
-    def request_point_tag_delete(self, foc, lid, pid, tags, lang=None):
-        self.__wake_agent()
-        return self.__qc.request_point_tag_create(foc, lid, pid, tags, lang=lang, delete=True)
+        return self.__qc.request_point_tag_update(foc, lid, pid, tags, delete=delete)
 
     def request_point_tag_list(self, foc, lid, pid, limit=500, offset=0):
         self.__wake_agent()
@@ -267,14 +259,15 @@ class QAPIWorker(object):
         self.__wake_agent()
         return self.__qc.request_sub_recent(sub_id, count=count)
 
-    def request_search(self, text=None, lang=None, location=None, unit=None, limit=100, offset=0, type_='full'):
+    def request_search(self, text=None, lang=None, location=None, unit=None, limit=100, offset=0, type_='full',
+                       local=False):
         self.__wake_agent()
         return self.__qc.request_search(text=text, lang=lang, location=location, unit=unit,
-                                        limit=limit, offset=offset, type_=type_)
+                                        limit=limit, offset=offset, type_=type_, local=local)
 
-    def request_describe(self, guid):
+    def request_describe(self, guid, local=False):
         self.__wake_agent()
-        return self.__qc.request_describe(guid)
+        return self.__qc.request_describe(guid, local=local)
 
     def __cb_feeddata(self, data):
         if self.__keepFeeddata == 0:
