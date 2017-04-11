@@ -410,7 +410,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.__qapiManager.request_point_create,
                 foc,
                 payload['lid'] if 'lid' in payload else '',
-                payload['pid'] if 'pid' in payload else '')
+                payload['pid'] if 'pid' in payload else '',
+                save_recent=payload['saveRecent'] if 'saveRecent' in payload else 0)
+
 
     def __do_POST_sub(self, payload):
         foc = self.__str_to_foc()

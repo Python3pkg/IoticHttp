@@ -164,13 +164,13 @@ class QAPIManager(object):
     def __dummy_cb(self, *args, **kwargs):
         pass
 
-    def request_point_create(self, epid, authtoken, foc, lid, pid):
+    def request_point_create(self, epid, authtoken, foc, lid, pid, save_recent=0):
         cb = None
         if foc == IoticAgentCore.Const.R_CONTROL:
             cb = self.__dummy_cb
         with self.__workers_lock:
             self.__check_epid(epid, authtoken)
-            return self.__workers[epid].request_point_create(foc, lid, pid, control_cb=cb)
+            return self.__workers[epid].request_point_create(foc, lid, pid, control_cb=cb, save_recent=save_recent)
 
     def request_point_rename(self, epid, authtoken, foc, lid, pid, newpid):
         with self.__workers_lock:

@@ -60,10 +60,10 @@ ${PROXY_CALL} -X GET -H "epId: ${EPID}" -H "authToken: ${AUTH}" ${PROXY_URL}/ent
 ${WAIT}
 
 echo -e "\n\n# === proxy - create point feed [${LIDA} -> 'data'"
-${PROXY_CALL} -X POST "${C_TYPE[@]}" -H "epId: ${EPID}" -H "authToken: ${AUTH}" --data-binary '{"lid":"'"${LIDA}"'", "pid": "data"}' ${PROXY_URL}/point/feed
+${PROXY_CALL} -X POST "${C_TYPE[@]}" -H "epId: ${EPID}" -H "authToken: ${AUTH}" --data-binary '{"lid":"'"${LIDA}"'", "pid": "data", "saveRecent": 2}' ${PROXY_URL}/point/feed
 ${WAIT}
 echo -e "\n\n# === proxy - create point control [${LIDA} -> 'button'"
-${PROXY_CALL} -X POST "${C_TYPE[@]}" -H "epId: ${EPID}" -H "authToken: ${AUTH}" --data-binary '{"lid":"'"${LIDA}"'", "pid": "button"}' ${PROXY_URL}/point/control
+${PROXY_CALL} -X POST "${C_TYPE[@]}" -H "epId: ${EPID}" -H "authToken: ${AUTH}" --data-binary '{"lid":"'"${LIDA}"'", "pid": "button", "saveRecent": 2}' ${PROXY_URL}/point/control
 ${WAIT}
 echo -e "\n\n# === proxy - rename point feed [${LIDA} data -> atad"
 ${PROXY_CALL} -X PUT "${C_TYPE[@]}" -H "epId: ${EPID}" -H "authToken: ${AUTH}" --data-binary '{"newpid": "atad"}' ${PROXY_URL}/point/feed/${LIDA}/data/rename

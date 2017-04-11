@@ -175,9 +175,9 @@ class QAPIWorker(object):
         self.__wake_agent()
         return self.__qc.request_entity_tag_list(lid, limit=limit, offset=offset)
 
-    def request_point_create(self, foc, lid, pid, control_cb=None):
+    def request_point_create(self, foc, lid, pid, control_cb=None, save_recent=0):
         self.__wake_agent()
-        return self.__qc.request_point_create(foc, lid, pid, control_cb=control_cb)
+        return self.__qc.request_point_create(foc, lid, pid, control_cb=control_cb, save_recent=save_recent)
 
     def request_point_rename(self, foc, lid, pid, newpid):
         self.__wake_agent()

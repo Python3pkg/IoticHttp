@@ -21,7 +21,7 @@
 PYTHON_BIN="$(which python3 2>/dev/null)"
 # Arguments for Python interpreter
 # Note: -S missing system paths allowed
-PYTHON_ARGS=(-bOOs -W all)
+PYTHON_ARGS=(-bs -W all)
 # Working directory (relative paths in configuration are based on this)
 QAPIPROXY_RUN_DIR=.
 # User to run the service as
