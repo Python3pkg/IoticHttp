@@ -499,7 +499,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def __dict_to_b64(self, data):
         ret = {}
-        for key, value in data.items():
+        for key, value in list(data.items()):
             if isinstance(value, bytes):
                 value = "base64/" + b64encode(value).decode('ascii')
             elif isinstance(value, dict):

@@ -93,7 +93,7 @@ def main():
             while True:
                 print('Enter "q" to exit')
                 try:
-                    if input() == 'q':
+                    if eval(input()) == 'q':
                         break
                 except EOFError:
                     break
